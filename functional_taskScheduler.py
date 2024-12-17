@@ -12,7 +12,6 @@ def parse_and_validate_date(date_str):
     except ValueError as e:
         raise ValueError(f"Invalid date: {e}")
     
-
 def add_task(tasks, description, due_date, priority):
     new_task = {
         'id': 0,
