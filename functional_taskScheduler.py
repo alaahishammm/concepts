@@ -3,9 +3,7 @@ from datetime import datetime
 import json
 from datetime import timedelta
 
-# --- Pure Utility Functions ---
-def parse_and_validate_date(date_str: str) -> str:
-    """Validate and return a valid date string."""
+def parse_and_validate_date(date_str):
     try:
         due_date = datetime.strptime(date_str, '%Y-%m-%d')
         if due_date < datetime.now():
@@ -15,8 +13,7 @@ def parse_and_validate_date(date_str: str) -> str:
         raise ValueError(f"Invalid date: {e}")
     
 
-def add_task(tasks: List[Dict], description: str, due_date: str, priority: str) -> List[Dict]:
-    """Add a new task and return a new sorted task list."""
+def add_task(tasks, description, due_date, priority):
     new_task = {
         'id': 0,
         'description': description,
@@ -27,68 +24,105 @@ def add_task(tasks: List[Dict], description: str, due_date: str, priority: str) 
     }
     updated_tasks = tasks + [new_task]
     sorted_tasks = sorted(updated_tasks, key=lambda t: datetime.strptime(t['due_date'], '%Y-%m-%d'))
-    for index, task in enumerate(sorted_tasks):
-        task['id'] = index + 1
+
+    def assign_ids(tasks_list, idx= 0):
+        if idx < len(tasks_list):
+            tasks_list[idx]['id'] = idx + 1
+            assign_ids(tasks_list, idx + 1)
+
+    assign_ids(sorted_tasks)
+
     return sorted_tasks
 
 
-def delete_task(tasks: List[Dict], task_id: int) -> List[Dict]:
-    """Return a new list with the task removed, without mutating the original tasks."""
-    return [task for task in tasks if task['id'] != task_id]
+def delete_task(tasks, task_id):
+    if not tasks:  
+        return []
+    
+    head, *tail = tasks  
+    if head['id'] == task_id:
+        return delete_task(tail, task_id)  
+    else:
+        return [head] + delete_task(tail, task_id) 
 
 
-def filter_tasks_by_priority(tasks: List[Dict], priority: str) -> List[Dict]:
-    """Filter tasks by priority level."""
-    return [task for task in tasks if task.get('priority') == priority]
+def filter_tasks_by_priority(tasks, priority):
+    if not tasks:  
+        return []
+    
+    head, *tail = tasks 
+    if head.get('priority') == priority:
+        return [head] + filter_tasks_by_priority(tail, priority)
+    else:
+        return filter_tasks_by_priority(tail, priority)  # Skip task and continue
 
-
-def format_tasks(tasks: List[Dict]) -> str:
-    """Format tasks as a string."""
-    if not tasks:
+def format_tasks(tasks):
+    if not tasks:  # Base case: if no tasks remain
         return "No tasks available."
-    return '\n'.join(
-        f"ID: {task['id']}, Description: {task['description']}, Priority: {task['priority']}, Due Date: {task['due_date']}, Completed: {'Yes' if task['completed'] else 'No'},"
-        for task in tasks
+    
+    head, *tail = tasks  # Split list into head and tail
+    task_str = (
+        f"ID: {head['id']}, Description: {head['description']}, "
+        f"Priority: {head['priority']}, Due Date: {head['due_date']}, "
+        f"Completed: {'Yes' if head['completed'] else 'No'}"
     )
+    return task_str + ('\n' + format_tasks(tail) if tail else '')
 
-
-def update_task_priority(tasks: List[Dict], task_id: int, new_priority: str) -> List[Dict]:
-    """Update the priority of a task and return the new list of tasks."""
-
-    return [
-        {**task, 'priority': new_priority} if task['id'] == task_id else task 
-        for task in tasks   
-    ]
-
+def update_task_priority(tasks, task_id, new_priority):
+    
+    def update_task_recursively(tasks_list, index):
+        if index >= len(tasks_list):  # Base case: if we've processed all tasks
+            return []
+        
+        task = tasks_list[index]
+        if task['id'] == task_id:
+            updated_task = {**task, 'priority': new_priority}  # Update priority
+        else:
+            updated_task = task
+        
+        # Recursively process the rest of the list
+        return [updated_task] + update_task_recursively(tasks_list, index + 1)
+    
+    return update_task_recursively(tasks)
 
     
-def  update_task_status(tasks: List[Dict]) -> List[Dict]:
-    """Handles marking a task as completed."""
+def update_task_status(tasks):
     try:
         task_id = int(input("Enter Task ID to mark as completed: ").strip())
-        updated_tasks = [
-            {**task, 'completed': True} if task['id'] == task_id else task
-            for task in tasks
-        ]
-        print(f"Task ID {task_id} marked as completed.")
-        return updated_tasks
+        
+        def update_status_recursively(tasks_list, index=0):
+            if index >= len(tasks_list):
+                return []
+            
+            current_task = tasks_list[index]
+            if current_task['id'] == task_id:
+                updated_task = {**current_task, 'completed': True}  
+                print(f"Task ID {task_id} marked as completed.")
+            else:
+                updated_task = current_task
+            
+            return [updated_task] + update_status_recursively(tasks_list, index + 1)
+        
+        return update_status_recursively(tasks)
+    
     except ValueError:
         print("Invalid Task ID. Please enter a valid number.")
         return tasks
 
 
 
-
-def get_delayed_tasks(tasks: List[Dict], current_time: datetime) -> List[Dict]:
-    """Return a list of delayed tasks."""
-    return [
-        task for task in tasks
-        if not task.get('completed', False) and is_date_delayed(task['due_date'], current_time)
-    ]
+def get_delayed_tasks(tasks, current_time):
+    if not tasks:
+        return []
+    
+    head, *tail = tasks  
+    if not head.get('completed', False) and is_date_delayed(head['due_date'], current_time):
+        return [head] + get_delayed_tasks(tail, current_time)
+    else:
+        return get_delayed_tasks(tail, current_time)  
     
 
-def is_date_delayed(due_date: str, current_time: datetime) -> bool:
-    """Check if a task's due date is in the past."""
+def is_date_delayed(due_date, current_time):
     try:
         task_due_date = datetime.strptime(due_date, '%Y-%m-%d')
         return task_due_date < current_time
@@ -96,48 +130,39 @@ def is_date_delayed(due_date: str, current_time: datetime) -> bool:
         return False
     
 
-
-def get_tasks_nearing_deadlines(tasks: List[Dict], current_time: datetime, days_before_deadline: int = 3) -> List[Dict]:
-    """Return a list of tasks that are nearing their deadlines (within a certain number of days)."""
+def get_tasks_nearing_deadlines(tasks, current_time, days_before_deadline= 3):
+    if not tasks: 
+        return []
+    
+    head, *tail = tasks 
     deadline_threshold = current_time + timedelta(days=days_before_deadline)
     
-    # Filter tasks that are nearing their deadline
-    nearing_deadline_tasks = [
-        task for task in tasks
-        if 'due_date' in task and not task.get('completed', False)  # Task is not completed
-        and is_date_nearing_deadline(task['due_date'], current_time, deadline_threshold)  # Task due date is nearing
-    ]
-    
-    return nearing_deadline_tasks
+    if 'due_date' in head and not head.get('completed', False) and \
+       is_date_nearing_deadline(head['due_date'], current_time, deadline_threshold):
+        return [head] + get_tasks_nearing_deadlines(tail, current_time, days_before_deadline)
+    else:
+        return get_tasks_nearing_deadlines(tail, current_time, days_before_deadline)
 
-def is_date_nearing_deadline(due_date: str, current_time: datetime, deadline_threshold: datetime) -> bool:
-    """Check if a task's due date is nearing its deadline."""
+
+def is_date_nearing_deadline(due_date, current_time, deadline_threshold):
     try:
         task_due_date = datetime.strptime(due_date, '%Y-%m-%d')
-        # Check if the task's due date is within the threshold
         return current_time <= task_due_date <= deadline_threshold
     except ValueError:
         return False
 
     
     
-    
-    
-    
-
-def save_to_data(tasks: List[Dict]) -> str:
-    """Serialize tasks to JSON."""
+def save_to_data(tasks):
     return json.dumps(tasks, indent=4)
 
 
-def write_to_file(filename: str, data: str) -> None:
-    """Write raw data to a file."""
+def write_to_file(filename, data):
     with open(filename, 'w') as f:
         f.write(data)
 
 
-def load_from_data(data: str) -> List[Dict]:
-    """Deserialize tasks from JSON."""
+def load_from_data(data):
     try:
         tasks = json.loads(data)
         if not isinstance(tasks, list):
@@ -147,8 +172,7 @@ def load_from_data(data: str) -> List[Dict]:
         return []
 
 # --- I/O Wrapper Functions ---
-def read_from_file(filename: str) -> str:
-    """Read raw data from a file."""
+def read_from_file(filename):
     try:
         with open(filename, 'r') as f:
             return f.read()
@@ -157,8 +181,7 @@ def read_from_file(filename: str) -> str:
 
 
 # --- Functional Task Manager ---
-def perform_add_task(tasks: List[Dict]) -> List[Dict]:
-    """Handles adding a task."""
+def perform_add_task(tasks):
     description = input("Enter Task Description: ").strip()
     priority = input("Enter Task priority [high, low]: ").strip()
     
@@ -174,13 +197,11 @@ def perform_add_task(tasks: List[Dict]) -> List[Dict]:
     return add_task(tasks, description, due_date, priority)
 
 
-def filter_tasks_priority(tasks: List[Dict]) -> List[Dict]:
-    """Handles filtering tasks by priority."""
+def filter_tasks_priority(tasks):
     priority = input("Enter Priority [high, low]: ").strip()
     return filter_tasks_by_priority(tasks, priority)
 
-def delete_task_by_id(tasks: List[Dict]) -> List[Dict]:
-    """Handles deleting a task by its ID."""
+def delete_task_by_id(tasks):
     try:
         task_id = int(input("Enter Task ID: ").strip())  # Convert input to integer
         updated_tasks = delete_task(tasks, task_id)  # Pass the integer ID to delete_task
@@ -190,37 +211,31 @@ def delete_task_by_id(tasks: List[Dict]) -> List[Dict]:
         print("Invalid Task ID. Please enter a number.")
         return tasks
     
-def view_tasks(tasks: List[Dict]) -> None:
-    """Displays all tasks."""
+def view_tasks(tasks):
     print("\n--- All Tasks ---")
     print(format_tasks(tasks))
 
 
-def view_delayed_tasks(tasks: List[Dict]) -> None:
-    """Displays delayed tasks."""
+def view_delayed_tasks(tasks):
     delayed_tasks = get_delayed_tasks(tasks, datetime.now())
     print("\n--- Delayed Tasks ---")
     print(format_tasks(delayed_tasks))
 
 
-def view_tasks_nearing_deadlines(tasks: List[Dict]) -> None:
-    """Displays tasks nearing deadlines."""
+def view_tasks_nearing_deadlines(tasks):
     nearing_deadline_tasks = get_tasks_nearing_deadlines(tasks, datetime.now(), days_before_deadline=3)
     print("\n--- Tasks Nearing Deadlines ---")
     print(format_tasks(nearing_deadline_tasks))
 
 
-def save_and_exit(tasks: List[Dict]) -> None:
-    """Saves tasks to a file and exits."""
+def save_and_exit(tasks):
     save_data = save_to_data(tasks)
     write_to_file('tasks2.json', save_data)
     print("Tasks saved successfully. Exiting...")
 
 
-def task_manager(tasks: List[Dict]) -> None:
-    """Main task manager function with functional programming style."""
+def task_manager(tasks):
     def menu_choice() -> str:
-        """Prompts user for input and returns the choice."""
         print("\n--- Task Manager ---")
         print("1. Add Task")
         print("2. View Tasks")
