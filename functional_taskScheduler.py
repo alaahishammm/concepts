@@ -22,7 +22,10 @@ def add_task(tasks, description, due_date, priority):
         'nearly_overdue':False
     }
     updated_tasks = tasks + [new_task]
-    sorted_tasks = sorted(updated_tasks, key=lambda t: datetime.strptime(t['due_date'], '%Y-%m-%d'))
+    def so(t):
+        return datetime.strptime(t['due_date'], '%Y-%m-%d')
+
+    sorted_tasks = sorted(updated_tasks, key=so)
 
     def assign_ids(tasks_list, idx= 0):
         if idx < len(tasks_list):
